@@ -5,22 +5,64 @@
 	<meta http-equiv="X-UA-Compatible" content="IE=edge">
 	<title></title>
 	<style>
-		body {margin: 0;}
+		html {
+			width: 100%;
+			display: table;
+		}
+		body {
+			width: 100%;
+			margin: 0;
+			font-family: Arial;
+			font-size: 45px;
+		}
+		.inner {
+			display: table;
+			margin: auto;
+			height: 100%;
+		}
 		canvas {
+			display: table-cell;
+			vertical-align: middle;
+		}
+		.button {
+			position: absolute;
+			right: 30px;
+			height:100px;
+			width: 100px;
+			background-size: cover;
+			background-repeat: no-repeat;
+			background-position: center;
+			cursor: pointer;
+		}
+		#refresh {
+			top: 30px;
+			background-image: url(refresh.png);
+		}
+		#download {
+			top: 150px;
+			background-image: url(download.png);
+		}
+		#bottom {
+			border-top: 4px solid black;
+		}
+		form {
+			max-width: 960px;
+			padding: 50px;
 			display: table;
 			margin: auto;
 		}
-		form {
-			padding: 50px;
-			border-top: 4px solid black;
-		}
 		label {
-			font-size: 45px;
 			float: left;
-		}
-		input {
-			width: 300px;
+			clear: left;
+			width: 180px;
 			height: 50px;
+			padding: 10px 20px 10px 10px;
+			text-align: right;
+			font-weight: bold;
+			margin-bottom: 20px;
+		}
+		input, textarea {
+			width: 600px;
 			padding: 10px;
 			font-size: 45px;
 			line-height: 50px;
@@ -29,6 +71,20 @@
 			outline: none;
 			border: 4px solid black;
 			text-transform: uppercase;
+			margin-bottom: 20px;
+			resize: none;
+			background: white;
+			font-family: Arial;
+		}
+		input[type="submit"] {
+			width: calc(50% - 20px);
+			width: -webkit-calc(50% - 20px);
+			margin: 10px;
+			float: left;
+			cursor: pointer;
+		}
+		#copyThis {
+			-webkit-transform: scale(0);
 		}
 	</style>
 	<script type="text/javascript" src="paper-full.min.js"></script>
@@ -38,19 +94,64 @@
 		width = 960;
 		height = 560;
 		view.viewSize = new Size(width, height);
+		var system = {};
 		generate();
+		$('#refresh').click(function(event) {
+			event.preventDefault();
+			project.clear();
+		    view.draw();
+			generate();
+		});
 
-		function download(fileName) {
-		   if(!fileName) {
-		       fileName = "paperjs_example.svg"
-		   }
+		$('#download').click(function() {
+			event.preventDefault();
+		    download();
+		});
 
-		   var url = "data:image/svg+xml;utf8," + encodeURIComponent(project.exportSVG({asString:true}));
+		$('#draw').click(function(event) {
+			event.preventDefault();
+			var system = {};
+			$('.field').each(function(i, field) {
+		    	var id = field.id;
+		    	var value = field.value;
 
-		   var link = document.createElement("a");
-		   link.download = fileName;
-		   link.href = url;
-		   link.click();
+		    	if (id == 'a' || id == 'iter') {
+		    		value = parseInt(value);
+		    	}
+		    	else if (id == 'rules') {
+		    		value = JSON.parse(value);
+		    	}
+		    	else if (id == 'wiggly') {
+		    		value = (value === 'true');
+		    	}
+
+		    	system[id] = value;
+		    });
+		    project.clear();
+		    view.draw();
+		    expand(system);
+		});
+
+		$('#copy').click(function() {
+			event.preventDefault();
+		    var copyThis = document.querySelector('#copyThis');
+			copyThis.select();
+			try {
+				var successful = document.execCommand('copy');
+				var msg = successful ? 'successful' : 'unsuccessful';
+				console.log(copyThis.value);
+			} catch (err) {
+				alert.log('Did not copy system text');
+			}
+		});
+
+		function download() {
+			var fileName = 'lsystem';
+			var url = "data:image/svg+xml;utf8," + encodeURIComponent(project.exportSVG({asString:true}));
+			var link = document.createElement("a");
+			link.download = fileName;
+			link.href = url;
+			link.click();
 		}
 
 		function chooseRandom(arr) {
@@ -73,7 +174,6 @@
 		}
 
 		function generate() {
-		    var system = {};
 		    var killOrder = ['a', 'iter', 'wiggly'];
 		    var charSet = ['F'];
 		    var alphabet = 'ABCDEGHIJKLMNOPQRSTUVWXYZ'.split('');
@@ -99,15 +199,32 @@
 		        }
 		    });
 
-
 		    // choose optional parameters (if not specified, random values are chosen later)
 		    system.a = chooseRandom(angles);
 		    system.iter = chooseRandom(iters);
 		    if(chooseRandom(wigglies)) {
 		        system.wiggly = true;
+		    } else {
+		    	system.wiggly = false;
 		    }
-		    $('input').val(JSON.stringify(system.rules));
-		    // console.log(system);
+
+		    console.log(system);
+		    $('.field').each(function(i, field) {
+		    	var id = field.id;
+		    	if(id == 'rules') {
+		    		var value = JSON.stringify(system[id]);
+		    	} else {
+		    		var value = system[id];	
+		    	}
+		    	
+		    	if(value == undefined) {
+		    		console.log('The ' + id + ' value is undefined.');
+		    		field = '';
+		    	}
+		    	field.value = value;
+		    });
+		    var systemText = JSON.stringify(system);
+		    $('#copyThis').val(systemText);
 		    expand(system);
 		}
 
@@ -118,11 +235,13 @@
 		}
 
 		function expand(system, minLength) {
+
 		    minLength = minLength === undefined ? 0 : minLength;
 		    var start = system.start;
 		    var rules = system.rules;
 		    var angle = system['a'] || chooseRandom([36, 45, 60, 90]);
 		    var iterations = system.iter || chooseRandom([3, 4, 5, 6]);
+
 		    var color = system.color || new Color({
 		        hue: Math.random()*360,
 		        saturation: Math.random()*0.8 + 0.2,
@@ -189,23 +308,41 @@
 		    if(smooth) {
 		        path.smooth();
 		    }
-
-		    $('#canvas').click(function() {
-		    	download('lsystem');
-		    });
+		    view.draw();
 		}
 
 	</script>
 </head>
 <body>
 	<main id="top">
-		<canvas id="canvas"></canvas>
+		<div class="button" id="refresh"></div>
+		<div class="button" id="download"></div>
+		<div class="inner">
+			<canvas id="canvas"></canvas>
+		</div>
 	</main>
-	<!-- <main id="bottom">
+	<main id="bottom">
 		<form>
-			<label></label>
-			<input type="text">
+			<label>A</label>
+			<input class="field" id="a" type="text">
+
+			<label>Iter</label>
+			<input class="field" id="iter" type="text">
+
+			<label>Rules</label>
+			<textarea rows="6" class="field" id="rules" type="text"></textarea>
+
+			<label>Start</label>
+			<input class="field" id="start" type="text">
+
+			<label>Wiggly</label>
+			<input class="field" id="wiggly" type="text">
+
+			<input id="draw" value="Draw" type="submit">
+			<input id="copy" value="Copy" type="submit">
+
+			<input id="copyThis" type="text">
 		</form>
-	</main> -->
+	</main>
 </body>
 </html>
